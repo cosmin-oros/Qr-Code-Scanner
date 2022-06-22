@@ -1,0 +1,67 @@
+package com.example.qrcodescanner
+
+import android.graphics.ImageFormat
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
+import com.google.zxing.*
+import com.google.zxing.common.HybridBinarizer
+import java.lang.Exception
+import java.nio.ByteBuffer
+
+class QrCodeAnalyzer(
+    private val onQrCodeScanned: (String) -> Unit
+): ImageAnalysis.Analyzer {
+
+    private val supportedImageFormats = listOf(
+        ImageFormat.YUV_420_888,
+        ImageFormat.YUV_422_888,
+        ImageFormat.YUV_444_888
+    )
+
+    override fun analyze(image: ImageProxy) {
+        if (image.format in supportedImageFormats){
+            val bytes = image.planes.first().buffer.toByteArray()
+
+            val source = PlanarYUVLuminanceSource(
+                bytes,
+                image.width,
+                image.height,
+                0,
+                0,
+                image.width,
+                image.height,
+                false
+            )
+
+            val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
+            try{
+                val result = MultiFormatReader().apply {
+                    setHints(
+                        mapOf(
+                            DecodeHintType.POSSIBLE_FORMATS to arrayListOf(
+                                //the formats that it recognizes
+                                BarcodeFormat.QR_CODE
+                            )
+                        )
+                    )
+                }.decode(binaryBitmap)
+                onQrCodeScanned(result.text)
+            }catch (e: Exception){
+                //if it doesn't find a QR code
+                e.printStackTrace()
+            }finally {
+                image.close()
+            }
+        }
+    }
+
+    private fun ByteBuffer.toByteArray(): ByteArray{
+        //make sure we start at the beginning
+        rewind()
+
+        //include all the byte buffer
+        return ByteArray(remaining()).also {
+            get(it)
+        }
+    }
+}
